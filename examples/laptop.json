@@ -1,0 +1,28 @@
+{
+  "profile": {
+    "user_id": "u-1",
+    "name": "Sam",
+    "currency": "USD",
+    "balance": 3000,
+    "minimum_balance": 1000,
+    "protected_categories": ["rent"],
+    "accepted_methods": ["full_payment", "partial_payment"]
+  },
+  "transactions": [
+    { "id": "s0", "description": "Payroll", "category": "salary", "direction": "in", "amount": 3000, "currency": "USD", "date": "2025-12-25", "kind": "regular" },
+    { "id": "s1", "description": "Payroll", "category": "salary", "direction": "in", "amount": 3000, "currency": "USD", "date": "2026-01-25", "kind": "regular" },
+    { "id": "s2", "description": "Payroll", "category": "salary", "direction": "in", "amount": 3000, "currency": "USD", "date": "2026-02-25", "kind": "regular" },
+    { "id": "r0", "description": "Apartment rent", "category": "rent", "direction": "out", "amount": 1200, "currency": "USD", "date": "2025-12-15", "kind": "regular" },
+    { "id": "r1", "description": "Apartment rent", "category": "rent", "direction": "out", "amount": 1200, "currency": "USD", "date": "2026-01-15", "kind": "regular" },
+    { "id": "r2", "description": "Apartment rent", "category": "rent", "direction": "out", "amount": 1200, "currency": "USD", "date": "2026-02-15", "kind": "regular" }
+  ],
+  "messages": [],
+  "request": {
+    "id": "r-1",
+    "created_on": "2026-03-10",
+    "title": "Laptop",
+    "amount": 1500,
+    "deadline": "2026-05-09",
+    "allows_partial": true
+  }
+}

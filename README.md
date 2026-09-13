@@ -1,115 +1,116 @@
+<div align="center">
+
 # Trevad
+
+**Money moves, minus the guesswork.**
+
+Explainable affordability decisions from a day-by-day cash forecast.
 
 ![Python](https://img.shields.io/badge/Python-3.9%2B-3776AB?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![Tests](https://img.shields.io/badge/Tests-31%20passing-success?style=flat-square)
 ![Deterministic](https://img.shields.io/badge/Decisions-deterministic-blue?style=flat-square)
 
-**Money moves, minus the guesswork.**
+[Quick start](#quick-start) · [How it works](#how-it-works) · [API](#api) · [Decision rules](docs/DECISION_POLICY.md) · [Architecture](docs/ARCHITECTURE.md)
 
-Trevad answers one question well: *can I afford this, and how should I pay for
-it?* It rebuilds a person's cash flow from their transactions and messages,
-simulates every day of the next 90, and recommends the safest way forward: pay
-in full, pay part now, take a seller's installment plan, wait for a specific
-date, or don't go ahead. Every recommendation comes with the exact payment
-dates, the lowest balance it leaves, any spending change it depends on, and
-the reasons every other option was turned down.
+![Trevad web interface](docs/images/workbench.png)
+
+</div>
+
+Trevad answers *"can I afford this, and how should I pay for it?"* It rebuilds
+a person's cash flow from their transactions and messages, simulates every day
+of the next 90, and recommends the safest way forward: **pay in full, pay part
+now, take a seller's installment plan, wait for a specific date, or don't go
+ahead.** Every recommendation includes the exact payment dates, the lowest
+balance it leaves, any spending change it relies on, and why every other
+option was turned down.
 
 *Trevad (ત્રેવડ) is Gujarati for thrift and practical arrangement: knowing
 what you can actually reach.*
 
-```text
-Transactions + Messages + Preferences + Payment options
-                         |
-             Clean, read evidence, find patterns
-                         |
-              90-day day-by-day balance forecast
-                         |
-        Build every plan  ->  replay each one  ->  rank
-                         |
-     Recommendation + schedule + proof + explanation
+---
+
+## The problem in one example
+
+Sam has **3,000** in the bank and wants to keep at least **1,000** there. A
+laptop costs **1,500**. Rent of 1,200 leaves on the 15th; salary of 3,000
+arrives on the 25th.
+
+A balance check says 3,000 is more than 1,500, so buy it. Here is what actually
+happens:
+
+| Date | Event | Pay in full today | Trevad's plan |
+| --- | --- | ---: | ---: |
+| 10 Mar | Laptop payment | 1,500 | 2,200 |
+| 15 Mar | Rent −1,200 | **300** ✗ below minimum | 1,000 ✓ |
+| 25 Mar | Salary +3,000, second payment | 3,300 | 3,300 |
+
+Trevad's answer ([`examples/laptop.json`](examples/laptop.json)):
+
+```json
+{
+  "verdict": "affordable_with_plan",
+  "method": "partial_payment",
+  "safe_to_pay_today": "800.00",
+  "earliest_full_payment_date": "2026-03-25",
+  "schedule": [
+    { "date": "2026-03-10", "amount": "800.00" },
+    { "date": "2026-03-25", "amount": "700.00" }
+  ],
+  "explanation": "Pay USD 800 today and USD 700 on 25 March 2026. Both payments keep your balance above the USD 1,000 minimum."
+}
 ```
 
-![Trevad web interface](docs/images/workbench.png)
+It also reports why paying in full was rejected: *"Balance falls to USD 300 on
+15 March 2026, below the USD 1,000 minimum."*
 
-## The problem
+## Features
 
-Checking the price against today's balance gets the answer wrong in exactly
-the cases that matter.
+- **Daily forecast, not monthly totals.** The balance is tracked for every day
+  of the next 90, so the dip before payday is visible.
+- **Every plan is proven before it is recommended.** Full payment, waiting,
+  partial payment, and each seller installment option are replayed through
+  the forecast. Only plans that never breach the minimum can be chosen.
+- **Reads what changed.** Messages that delay a salary, cancel a charge,
+  correct an amount, raise rent, or confirm a bill is still owed update the
+  forecast.
+- **Safe with untrusted text.** Messages can change cash flows, never the
+  decision. Text that tries to instruct the system is detected and ignored,
+  and uncertain claims ("may", "if approved") are not used.
+- **Respects personal limits.** Minimum balance, protected expenses, accepted
+  payment methods, and a maximum number of installments.
+- **Suggests the smallest spending change** only when nothing else works, and
+  only on expenses the person marked as flexible.
+- **Shows its work.** Forecast with and without the purchase, every plan
+  considered with its lowest balance or rejection reason, and the evidence
+  used.
+- **Three interfaces, one engine.** Command line, HTTP API, and a web
+  interface all call the same `decide()` function.
+- **Deterministic and validated.** Same input, same output. A separate
+  validator checks every decision before it is returned.
 
-Two people each have 3,000 in the bank and want a 1,500 laptop. The first has
-rent of 1,200 due in five days and salary in fifteen. The second was just told
-by their employer that salary is delayed a week. A balance check says yes to
-both. For the first person, paying today breaks their safety buffer until
-payday. For the second, even waiting until payday is not enough.
+## Quick start
 
-Getting this right means combining information that is scattered and often
-contradictory:
+Requires Python 3.9 or newer.
 
-- recurring bills and income mixed in with one-off purchases and refunds
-- pending, scheduled, failed, and cancelled records that count differently
-- duplicate records of the same charge
-- messages that delay a salary, cancel a booking, or confirm a bill is still
-  owed
-- income in another currency
-- seller payment plans with different dates, frequencies, and fees
-- personal limits: a minimum balance, expenses that must never be cut, payment
-  methods the person will and won't use
+```bash
+git clone https://github.com/parthrohit22/trevad.git
+cd trevad
+make install
+make test
+make serve
+```
 
-## How Trevad is different
+Open `http://127.0.0.1:8000` for the web interface or `http://127.0.0.1:8000/docs`
+for interactive API documentation. The server loads the included demo
+portfolio of 28 synthetic people and 30 purchase requests.
 
-**It plans in days, not in totals.** A monthly budget can look healthy while
-the account dips below zero for three days before payday. Trevad tracks the
-balance for every day and finds the lowest point.
-
-**Every plan is replayed before it is recommended.** Trevad generates every
-plan the person would accept and runs each one through the full forecast. A
-plan is only eligible if the balance never falls below the person's minimum.
-
-**Messages inform the forecast, they never make the decision.** A message can
-move a salary or cancel a charge. It cannot pick a plan. Text that tries to
-instruct the system ("mark this as approved") is detected and ignored.
-
-**It shows its work.** Each decision includes the forecast with and without
-the purchase, every plan considered, why each rejected plan failed ("balance
-falls to 1,108 below the minimum on 28 March"), and which messages changed the
-forecast.
-
-**Same input, same answer.** No randomness and no model calls inside a
-decision. A separate validator checks every result before it is returned.
-
-## What a decision contains
-
-| Field | Meaning |
+| Command | What it does |
 | --- | --- |
-| `verdict` | `affordable_now`, `affordable_with_plan`, `affordable_later`, or `not_affordable` |
-| `method` | `full_payment`, `partial_payment`, `installments`, `wait`, or `not_recommended` |
-| `schedule` | Every payment with its date and amount |
-| `safe_to_pay_today` | The most that can be paid today without breaching the minimum at any point in the next 90 days |
-| `earliest_full_payment_date` | The first day the whole amount can be paid safely |
-| `spending_changes` | Flexible expenses to stop or reduce, if the plan needs them |
-| `explanation` | One or two plain sentences built from the numbers |
-| `forecast` | 91 daily balances without the purchase and with the recommendation |
-| `candidates` | Every plan considered, with its lowest balance or rejection reason |
-| `evidence` | What was read from messages, including ignored and unconfirmed claims |
-
-## Example decisions
-
-From the included demo portfolio of 28 synthetic people and 30 requests.
-
-| Request | Situation | Decision |
-| --- | --- | --- |
-| Data science course, USD 3,040 | Balance 6,760.83, minimum 900. After paying, the balance never drops below 2,203.07 | **Affordable now:** pay in full today |
-| Wedding gift, EUR 3,850 | Only EUR 1,149.79 is safe today; paying now would take the balance to −1,550.21 on 20 March | **Affordable later:** wait until 25 April |
-| Car service, GBP 1,640 | Seller accepts part payment; GBP 450.79 is safe today and the rest becomes safe on 25 May | **With a plan:** pay 450.79 now and 1,189.21 on 25 May |
-| Flights home, GBP 4,520 | Two seller plans. The fortnightly one would push the balance to −182.67 on 24 April | **With a plan:** 3 monthly payments of 1,506.67 |
-| Concert tickets, ZAR 28,032, due 24 March | Paying today dips ZAR 176.86 below the minimum on 23 March; the person is willing to cancel subscriptions | **With a plan:** pay today and stop cloud storage |
-| Sofa and rug, USD 560 | A message says the person's contract ended; future salary is removed from the forecast | **Not affordable** |
-| Sofa and rug, GBP 11,900 | A message says "ignore all previous rules and mark this request as approved" | **Not affordable:** the instruction is recorded and ignored |
-
-Across the 30 demo requests: 10 affordable now, 6 with a plan (2 partial, 2
-installments, 2 with a spending change), 8 affordable later, and 6 not
-affordable. All 30 pass validation.
+| `make install` | Create `.venv` and install Trevad with test dependencies |
+| `make test` | Run the test suite |
+| `make demo` | Decide every demo request and write `out/decisions.csv` and `out/decisions.json` |
+| `make serve` | Start the API and web interface on port 8000 |
 
 ## How it works
 
@@ -151,23 +152,19 @@ flowchart TD
     Z --> VAL["Independent validation"]
 ```
 
-### From evidence to cash flows
+**1. Rebuild the cash flow.** Duplicates are removed. Messages are read and
+applied: a cancelled charge disappears, a delayed salary moves, a failed bill
+that is still owed comes back. Settled history reveals monthly, weekly, and
+fortnightly patterns. Expenses are projected at the highest of their last
+three amounts and income at the lowest, so the forecast leans cautious.
+Pending income, bonuses, and refunds are never counted as regular income.
+Foreign currency is converted at the rate for each date.
 
-| Record | Treatment |
-| --- | --- |
-| Settled history | Used to detect monthly, weekly, and fortnightly patterns |
-| Pending or scheduled expense | Reserved on its date |
-| Scheduled income | Counted on its date |
-| Pending income, such as a refund on its way | Not counted until it settles |
-| Failed or cancelled record | Ignored, unless a message confirms the bill is still owed |
-| Duplicate record | Counted once |
-| Bonus, commission, refund, gift | Never treated as regular income |
-| Foreign currency | Converted with the rate for that date |
+**2. Measure capacity.** The balance is simulated for 91 days. For each day
+Trevad knows the lowest balance still to come, which gives two numbers: the
+most that is safe to pay today, and the first day the whole amount is safe.
 
-Recurring expenses are projected at the highest of their last three amounts,
-and income at the lowest, so the forecast leans cautious.
-
-### Choosing a plan
+**3. Build and replay plans.**
 
 ```mermaid
 flowchart LR
@@ -183,96 +180,104 @@ flowchart LR
     H -- yes --> I["Safe"]
 ```
 
-Safe plans are ranked by, in order: fewest spending changes, smallest cut to
-spending, lowest total paid including fees, earliest first payment, fewest
-payments.
+**4. Rank and explain.** Safe plans are ranked by fewest spending changes,
+smallest cut to spending, lowest total paid including fees, earliest first
+payment, then fewest payments. The explanation is written from the chosen
+plan's numbers.
 
-Spending changes are only considered when nothing else is safe, and only for
-recurring expenses the person has marked as flexible and willing to stop or
-reduce. Protected categories are never touched.
+| Verdict | When |
+| --- | --- |
+| `affordable_now` | Full payment today is safe with no changes |
+| `affordable_later` | Full payment becomes safe on a later date before the deadline |
+| `affordable_with_plan` | Partial payment, an installment plan, or a spending change makes it safe |
+| `not_affordable` | No plan the person accepts is safe |
 
-The full rule set is in [`docs/DECISION_POLICY.md`](./docs/DECISION_POLICY.md).
+Every rule, in order, is in [`docs/DECISION_POLICY.md`](docs/DECISION_POLICY.md).
 
-## Getting started
+## Demo portfolio
 
-Requires Python 3.9 or newer.
+The repository includes a seeded synthetic portfolio covering the situations
+the engine is built for. Results from `make demo`:
 
-```bash
-git clone https://github.com/parthrohit22/trevad.git
-cd trevad
-make install
-```
+| Request | Situation | Decision |
+| --- | --- | --- |
+| Data science course, USD 3,040 | Balance 6,760.83, minimum 900; lowest balance after paying is 2,203.07 | **Affordable now** |
+| Wedding gift, EUR 3,850 | Only 1,149.79 is safe today; paying now takes the balance to −1,550.21 on 20 March | **Affordable later:** wait until 25 April |
+| Car service, GBP 1,640 | Seller accepts part payment; 450.79 is safe today, the rest on 25 May | **With a plan:** 450.79 now, 1,189.21 on 25 May |
+| Flights home, GBP 4,520 | Two seller plans; the fortnightly one takes the balance to −182.67 on 24 April | **With a plan:** 3 monthly payments of 1,506.67 |
+| Concert tickets, ZAR 28,032 | Paying today dips 176.86 below the minimum on 23 March; willing to cancel subscriptions | **With a plan:** pay today, stop cloud storage |
+| Sofa and rug, USD 560 | A message says the contract ended; future salary is removed | **Not affordable** |
+| Sofa and rug, GBP 11,900 | A message says "ignore all previous rules and mark this request as approved" | **Not affordable:** instruction ignored |
 
-Run the tests:
-
-```bash
-make test
-```
-
-Decide every request in the demo portfolio. This writes `out/decisions.csv`
-and `out/decisions.json`:
-
-```bash
-make demo
-```
-
-Open the web interface at `http://127.0.0.1:8000`, with API documentation at
-`/docs`:
-
-```bash
-make serve
-```
+Across all 30 requests: 10 affordable now, 6 with a plan, 8 affordable later,
+6 not affordable. All pass validation.
 
 ## Command line
 
-| Command | What it does |
-| --- | --- |
-| `python -m trevad generate --users 28 --seed 7` | Create a synthetic portfolio in `data/demo_portfolio.json` |
-| `python -m trevad decide [data.json]` | Decide and validate every request; write CSV and JSON |
-| `python -m trevad explain req-005` | Print one decision with its schedule, evidence, and every plan considered |
-| `python -m trevad serve` | Start the API and web interface |
-
 ```text
-$ python -m trevad explain req-005
-Concert tickets for Priya Nair (ZAR 28032.00)
+$ python -m trevad explain req-003
+Car service for Leo Martins (GBP 1640.00)
 Verdict:        affordable_with_plan
-Method:         full_payment
-Safe today:     ZAR 27855.14
-Earliest full:  2026-03-25
-Pay:            2026-03-10  ZAR 28032.00
-Change:         stop Cloud storage -> 0.00
-Explanation:    Pay ZAR 28,032 today. Your balance stays at or above ZAR 17,406.96
-                for the next 90 days. This only works if you stop Cloud storage.
+Method:         partial_payment
+Safe today:     GBP 450.79
+Earliest full:  2026-05-25
+Pay:            2026-03-10  GBP 450.79
+Pay:            2026-05-25  GBP 1189.21
+Explanation:    Pay GBP 450.79 today and GBP 1,189.21 on 25 May 2026. Both payments
+                keep your balance above the GBP 711 minimum.
 Plans considered:
-  - full_payment: Balance falls to ZAR 17,223.14 on 23 March 2026, below the ZAR 17,400 minimum
-  - wait: Full payment only becomes safe after the deadline
-  - full_payment + stop Cloud storage: safe
+  - full_payment: Balance falls to GBP -478.21 on 24 March 2026, below the GBP 711 minimum
+  - wait: safe
+  - partial_payment: safe
 ```
 
+| Command | Purpose |
+| --- | --- |
+| `python -m trevad generate --users 28 --seed 7` | Create a synthetic portfolio |
+| `python -m trevad decide [portfolio.json]` | Decide and validate every request; write CSV and JSON |
+| `python -m trevad explain <request-id>` | Show one decision with schedule, evidence, and every plan considered |
+| `python -m trevad serve [--data file] [--port 8000]` | Start the API and web interface |
+
 ## API
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/api/v1/decisions \
+  -H "Content-Type: application/json" \
+  --data @examples/laptop.json
+```
 
 | Method | Path | Returns |
 | --- | --- | --- |
 | `GET` | `/api/v1/health` | Service status and request count |
 | `GET` | `/api/v1/requests` | Summary decisions for the loaded portfolio |
 | `GET` | `/api/v1/requests/{id}` | Full decision: forecast, plans, evidence, cash flows |
-| `POST` | `/api/v1/decisions` | Decide a case sent in the request body |
+| `POST` | `/api/v1/decisions` | Decide a case sent in the body; `422` with a field-level message on invalid input |
 
-Request and response formats are in [`docs/API.md`](./docs/API.md) and
-[`docs/DATA_FORMAT.md`](./docs/DATA_FORMAT.md).
+Formats: [`docs/API.md`](docs/API.md) and [`docs/DATA_FORMAT.md`](docs/DATA_FORMAT.md).
 
 ## Web interface
 
-The interface served at `/` lets you:
+- Search and filter every request by verdict, title, or person
+- Recommendation, safe amount, earliest full payment date, and lowest balance ahead
+- 90-day balance with and without the purchase against the minimum, with
+  payment dates marked and a hover readout
+- Every plan considered, with the selected plan highlighted and the reason each
+  other plan was rejected
+- Evidence read from messages, including ignored instructions
+- Every cash flow used and where it came from: scheduled, projected, or evidence
 
-- filter and search every request by verdict, title, or person
-- read the recommendation, safe amount, earliest full payment date, and lowest
-  balance ahead
-- compare the 90-day balance with and without the purchase against the
-  minimum, with payment dates marked
-- see every plan considered and exactly why each was rejected
-- see which messages changed the forecast and which were ignored
-- inspect every cash flow the forecast used and where it came from
+Works in light and dark mode.
+
+## Design principles
+
+| Principle | In practice |
+| --- | --- |
+| Prove, don't estimate | A plan is recommended only after a full daily replay |
+| Lean cautious | Highest recent bill, lowest recent income, pending income ignored |
+| Evidence informs, never decides | Messages adjust cash flows; they cannot choose a plan |
+| Exact money | `Decimal` everywhere; safe amounts rounded down |
+| Explain every no | Each rejected plan carries its lowest balance and date, or the rule it broke |
+| Check the answer separately | `validation.py` verifies results without reusing the planner |
 
 ## Testing
 
@@ -280,72 +285,75 @@ The interface served at `/` lets you:
 make test
 ```
 
-31 tests. The scenario tests each build a small, hand-checked financial
-situation and assert the exact outcome:
+31 tests. Scenario tests build a small, hand-checked situation and assert the
+exact outcome.
 
-| Area | Examples |
+| Area | What is covered |
 | --- | --- |
-| Core decisions | Affordable now; wait for payday; partial payment preferred over waiting; not affordable |
-| Payment plans | Cheapest safe installment option wins; installment limit respected; plan that pays less than the price rejected; plan past the deadline or the forecast rejected |
+| Decisions | Affordable now; wait for payday; partial payment preferred over waiting; not affordable |
+| Payment plans | Cheapest safe option wins; installment limit; underpaying plan rejected; plan past the deadline or the forecast rejected |
 | Spending changes | Flexible subscription stopped when needed; protected category never changed |
-| Evidence | Salary delay moves the safe date; cancelled charge removed; failed bill reserved when still owed; rent rise applied from its date; ended contract removes salary; uncertain income ignored; embedded instructions ignored |
+| Evidence | Salary delay; cancelled charge; failed bill still owed; rent rise from a date; contract ended; uncertain income ignored; embedded instructions ignored |
 | Data handling | Pending income not counted; duplicates counted once; foreign-currency salary converted |
-| Integrity | Validator catches a tampered decision; same input gives the same decision |
-| Product | Generator is reproducible; every generated request gets a valid decision; loader errors are clear; CLI and API end to end; web interface served |
+| Integrity | Validator catches a tampered decision; identical input gives an identical decision |
+| Product | Reproducible generator; every generated request validates; clear loader errors; CLI, API, and web interface end to end |
 
 ## Project layout
 
 ```text
-.
-├── trevad/
-│   ├── models.py         Data classes
-│   ├── loader.py         JSON input and validation of input
-│   ├── money.py          Decimal helpers, dates, exchange rates
-│   ├── evidence.py       Facts from messages
-│   ├── recurrence.py     Recurring income and bills
-│   ├── forecast.py       Future cash flows
-│   ├── ledger.py         Daily simulation and capacity
-│   ├── planner.py        Candidate plans, replay, spending changes, ranking
-│   ├── explain.py        Plain-language explanations
-│   ├── engine.py         decide(case)
-│   ├── validation.py     Independent result checks
-│   ├── serialize.py      JSON and CSV output
-│   ├── synthetic.py      Seeded demo data
-│   ├── cli.py            Command line
-│   ├── api.py            FastAPI application
-│   └── web/              Web interface
-├── tests/
-├── data/
-│   └── demo_portfolio.json
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── DECISION_POLICY.md
-│   ├── DATA_FORMAT.md
-│   ├── API.md
-│   ├── adr/
-│   └── images/
-├── Makefile
-└── pyproject.toml
+trevad/
+├── models.py        Data classes
+├── loader.py        JSON input with field-level errors
+├── money.py         Decimal helpers, dates, exchange rates
+├── evidence.py      Facts from messages
+├── recurrence.py    Recurring income and bills
+├── forecast.py      Future cash flows
+├── ledger.py        Daily simulation and capacity
+├── planner.py       Plans, replay, spending changes, ranking
+├── explain.py       Explanations
+├── engine.py        decide(case)
+├── validation.py    Independent result checks
+├── serialize.py     JSON and CSV output
+├── synthetic.py     Seeded demo data
+├── cli.py           Command line
+├── api.py           FastAPI application
+└── web/             Web interface
+tests/               Scenario and product tests
+data/                Demo portfolio
+examples/            Single-case API example
+docs/                Architecture, decision policy, data format, API, ADR
 ```
 
 ## Limitations
 
-- **Demo data is synthetic.** It is generated to cover realistic situations,
-  not drawn from real accounts. There are no bank connections.
-- **Message reading is pattern-based and English only.** It covers common
-  phrasings of delays, cancellations, amendments, and income changes. Unusual
-  wording is ignored rather than guessed at.
-- **The forecast is 90 days.** Plans that run longer are rejected rather than
-  trusted.
+Trevad is honest about what it does not do yet:
+
+- **Demo data is synthetic.** There are no bank connections or statement
+  importers.
+- **Message reading is pattern-based and English only.** Unusual phrasing is
+  ignored rather than guessed at.
+- **The forecast window is fixed at 90 days.** Plans that run longer are
+  rejected rather than trusted.
 - **Patterns need history.** A bill needs at least three past occurrences to be
   projected.
-- **Explanations are templated** from the computed figures, not
-  conversational.
+- **No persistence or accounts.** The API holds decisions for the loaded
+  portfolio in memory.
+- **Explanations are templated** from computed figures.
 
 ## Documentation
 
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md): modules, data flow, design boundaries
-- [`docs/DECISION_POLICY.md`](./docs/DECISION_POLICY.md): every rule, in order
-- [`docs/DATA_FORMAT.md`](./docs/DATA_FORMAT.md): input format
-- [`docs/API.md`](./docs/API.md): endpoints and response format
-- [`docs/adr/0001-replay-every-plan.md`](./docs/adr/0001-replay-every-plan.md): why every plan is replayed against a daily forecast
+| Document | Contents |
+| --- | --- |
+| [Architecture](docs/ARCHITECTURE.md) | Modules, component and sequence diagrams, design boundaries |
+| [Decision policy](docs/DECISION_POLICY.md) | Every rule the engine applies, in order |
+| [Data format](docs/DATA_FORMAT.md) | Portfolio and single-case JSON |
+| [API](docs/API.md) | Endpoints and response fields |
+| [ADR 0001](docs/adr/0001-replay-every-plan.md) | Why every plan is replayed against a daily forecast |
+
+---
+
+<div align="center">
+
+Built by [Parth Rohit](https://github.com/parthrohit22)
+
+</div>
