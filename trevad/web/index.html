@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Trevad</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">T</span>
+      <div>
+        <strong>Trevad</strong>
+        <span>Money moves, minus the guesswork.</span>
+      </div>
+    </div>
+    <div id="summary" class="summary" aria-label="Decisions by verdict"></div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <input id="search" type="search" placeholder="Search by request or person" aria-label="Search requests">
+      <div id="filters" class="filters"></div>
+      <ul id="request-list" class="request-list"></ul>
+    </aside>
+    <main id="detail" class="detail">
+      <p class="empty">Loading decisions…</p>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
